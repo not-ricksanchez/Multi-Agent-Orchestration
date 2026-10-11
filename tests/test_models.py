@@ -63,16 +63,17 @@ def test_ollama_adapter_posts_chat_and_parses_json_content(monkeypatch):
 
     assert result == ModelResult(
         content={"decision": "approve"},
-        model="gemma3:12b",
+        model="qwen3:8b",
         input_tokens=120,
         output_tokens=30,
     )
     assert captured["url"] == "http://ollama.test/api/chat"
     assert captured["method"] == "POST"
     assert captured["body"] == {
-        "model": "gemma3:12b",
+        "model": "qwen3:8b",
         "stream": False,
         "format": "json",
+        "think": False,
         "options": {"temperature": 0},
         "messages": [
             {"role": "system", "content": "be precise"},
@@ -106,6 +107,28 @@ def test_ollama_adapter_uses_ollama_base_url_when_base_url_is_omitted(monkeypatc
     OllamaModelAdapter().complete("system", "user")
 
     assert captured["url"] == "http://host.docker.internal:11434/api/chat"
+
+
+def test_ollama_adapter_sends_think_true_when_thinking_is_enabled(monkeypatch):
+    captured = {}
+
+    class FakeResponse(BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    def fake_urlopen(request, timeout=None):
+        captured["body"] = json.loads(request.data.decode())
+        payload = {"message": {"content": "{}"}, "prompt_eval_count": 1, "eval_count": 1}
+        return FakeResponse(json.dumps(payload).encode())
+
+    monkeypatch.setattr("underwriting.models.urlopen", fake_urlopen)
+    OllamaModelAdapter(base_url="http://ollama.test", thinking=True).complete("s", "u")
+
+    assert captured["body"]["model"] == "qwen3:8b"
+    assert captured["body"]["think"] is True
 
 
 def test_ollama_adapter_raises_value_error_on_non_json_content(monkeypatch):

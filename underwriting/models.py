@@ -34,20 +34,23 @@ class OllamaModelAdapter:
     def __init__(
         self,
         base_url: str | None = None,
-        model: str = "gemma3:12b",
+        model: str = "qwen3:8b",
         timeout: float = 120,
+        thinking: bool = False,
     ):
         if base_url is None:
             base_url = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout = timeout
+        self.thinking = thinking
 
     def complete(self, system: str, user: str) -> ModelResult:
         payload = {
             "model": self.model,
             "stream": False,
             "format": "json",
+            "think": self.thinking,
             "options": {"temperature": 0},
             "messages": [
                 {"role": "system", "content": system},

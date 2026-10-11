@@ -19,7 +19,7 @@ A human underwriter picks up an `escalated` case. That is different from `refer`
 
 ## Trace evidence
 
-Produced by `scripts/run_timeout_case.py` against `gemma3:12b`, run `20261011T215304Z-b5ecb3` (`traces/20261011T215304Z-b5ecb3/app-timeout.json`).
+Produced by `scripts/run_timeout_case.py`. The live adapter default is `qwen3:8b` with `think` false. The checked-in demonstration is run `20261011T215304Z-b5ecb3` (`traces/20261011T215304Z-b5ecb3/app-timeout.json`). Intake and enrichment in that file used `gemma3:12b`; the timeout path does not call the model.
 
 | Step | Agent | Attempt | Status | Error | Started (UTC) | duration_ms | cost_usd |
 | --- | --- | ---: | --- | --- | --- | ---: | ---: |

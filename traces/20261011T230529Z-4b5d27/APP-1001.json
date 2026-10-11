@@ -1,0 +1,290 @@
+[
+  {
+    "run_id": "20261011T230529Z-4b5d27",
+    "case_id": "APP-1001",
+    "step": "intake",
+    "agent": "intake_agent",
+    "input": {
+      "raw_application": {
+        "case_id": "APP-1001",
+        "applicant_name": "Ada Lovelace",
+        "license_number": "D1002001",
+        "age": 40,
+        "years_licensed": 20,
+        "vehicle_year": 2018,
+        "vehicle_make": "Honda",
+        "coverage_amount": 500000,
+        "prior_claims": 0
+      }
+    },
+    "input_source": [
+      {
+        "field": "raw_application",
+        "from": "user"
+      }
+    ],
+    "output": {
+      "applicant_name": "Ada Lovelace",
+      "license_number": "D1002001",
+      "age": 40,
+      "years_licensed": 20,
+      "vehicle_year": 2018,
+      "vehicle_make": "Honda",
+      "coverage_amount": 500000,
+      "prior_claims": 0,
+      "missing_fields": []
+    },
+    "decision": null,
+    "started_at": "2026-10-11T23:05:29.380825+00:00",
+    "duration_ms": 5837,
+    "model": "qwen3:8b",
+    "usage": {
+      "input_tokens": 668,
+      "output_tokens": 94
+    },
+    "cost_usd": 0.000856,
+    "attempt": 1,
+    "max_attempts": 3,
+    "status": "ok",
+    "error": null
+  },
+  {
+    "run_id": "20261011T230529Z-4b5d27",
+    "case_id": "APP-1001",
+    "step": "mock_bureau",
+    "agent": "mock_bureau",
+    "input": {
+      "intake": {
+        "applicant_name": "Ada Lovelace",
+        "license_number": "D1002001",
+        "age": 40,
+        "years_licensed": 20,
+        "vehicle_year": 2018,
+        "vehicle_make": "Honda",
+        "coverage_amount": 500000,
+        "prior_claims": 0,
+        "missing_fields": []
+      }
+    },
+    "input_source": [
+      {
+        "field": "intake",
+        "from": "intake_agent"
+      }
+    ],
+    "output": {
+      "report_id": "R-1001",
+      "pulled_at": "2026-10-01",
+      "license_number": "D1002001",
+      "credit_score": 790,
+      "mvr_events": [],
+      "iso_symbol": 12,
+      "garaging_territory": "suburban"
+    },
+    "decision": null,
+    "started_at": "2026-10-11T23:05:35.225950+00:00",
+    "duration_ms": 0,
+    "model": null,
+    "usage": null,
+    "cost_usd": null,
+    "attempt": 1,
+    "max_attempts": 1,
+    "status": "ok",
+    "error": null
+  },
+  {
+    "run_id": "20261011T230529Z-4b5d27",
+    "case_id": "APP-1001",
+    "step": "enrichment",
+    "agent": "enrichment_agent",
+    "input": {
+      "intake": {
+        "applicant_name": "Ada Lovelace",
+        "license_number": "D1002001",
+        "age": 40,
+        "years_licensed": 20,
+        "vehicle_year": 2018,
+        "vehicle_make": "Honda",
+        "coverage_amount": 500000,
+        "prior_claims": 0,
+        "missing_fields": []
+      },
+      "bureau_report": {
+        "report_id": "R-1001",
+        "pulled_at": "2026-10-01",
+        "license_number": "D1002001",
+        "credit_score": 790,
+        "mvr_events": [],
+        "iso_symbol": 12,
+        "garaging_territory": "suburban"
+      }
+    },
+    "input_source": [
+      {
+        "field": "intake",
+        "from": "intake_agent"
+      },
+      {
+        "field": "bureau_report",
+        "from": "mock_bureau"
+      }
+    ],
+    "output": {
+      "credit_band": "excellent",
+      "loss_history": {
+        "at_fault_accidents": 0,
+        "violations": 0,
+        "total_losses": 0
+      },
+      "vehicle_symbol": 12,
+      "garaging_risk": "low",
+      "flags": [],
+      "source": "mock_bureau"
+    },
+    "decision": null,
+    "started_at": "2026-10-11T23:05:35.226717+00:00",
+    "duration_ms": 5329,
+    "model": "qwen3:8b",
+    "usage": {
+      "input_tokens": 1314,
+      "output_tokens": 79
+    },
+    "cost_usd": 0.001472,
+    "attempt": 1,
+    "max_attempts": 3,
+    "status": "ok",
+    "error": null
+  },
+  {
+    "run_id": "20261011T230529Z-4b5d27",
+    "case_id": "APP-1001",
+    "step": "risk",
+    "agent": "risk_scoring_agent",
+    "input": {
+      "intake": {
+        "applicant_name": "Ada Lovelace",
+        "license_number": "D1002001",
+        "age": 40,
+        "years_licensed": 20,
+        "vehicle_year": 2018,
+        "vehicle_make": "Honda",
+        "coverage_amount": 500000,
+        "prior_claims": 0,
+        "missing_fields": []
+      },
+      "enrichment": {
+        "credit_band": "excellent",
+        "loss_history": {
+          "at_fault_accidents": 0,
+          "violations": 0,
+          "total_losses": 0
+        },
+        "vehicle_symbol": 12,
+        "garaging_risk": "low",
+        "flags": [],
+        "source": "mock_bureau"
+      }
+    },
+    "input_source": [
+      {
+        "field": "intake",
+        "from": "intake_agent"
+      },
+      {
+        "field": "enrichment",
+        "from": "enrichment_agent"
+      }
+    ],
+    "output": {
+      "score": 30,
+      "drivers": [
+        "clean loss history",
+        "excellent credit"
+      ],
+      "missing_data": false
+    },
+    "decision": null,
+    "started_at": "2026-10-11T23:05:40.560131+00:00",
+    "duration_ms": 2093,
+    "model": "qwen3:8b",
+    "usage": {
+      "input_tokens": 701,
+      "output_tokens": 32
+    },
+    "cost_usd": 0.000765,
+    "attempt": 1,
+    "max_attempts": 3,
+    "status": "ok",
+    "error": null
+  },
+  {
+    "run_id": "20261011T230529Z-4b5d27",
+    "case_id": "APP-1001",
+    "step": "recommendation",
+    "agent": "recommendation_agent",
+    "input": {
+      "intake": {
+        "applicant_name": "Ada Lovelace",
+        "license_number": "D1002001",
+        "age": 40,
+        "years_licensed": 20,
+        "vehicle_year": 2018,
+        "vehicle_make": "Honda",
+        "coverage_amount": 500000,
+        "prior_claims": 0,
+        "missing_fields": []
+      },
+      "enrichment": {
+        "credit_band": "excellent",
+        "loss_history": {
+          "at_fault_accidents": 0,
+          "violations": 0,
+          "total_losses": 0
+        },
+        "vehicle_symbol": 12,
+        "garaging_risk": "low",
+        "flags": [],
+        "source": "mock_bureau"
+      },
+      "risk": {
+        "score": 30,
+        "drivers": [
+          "clean loss history",
+          "excellent credit"
+        ],
+        "missing_data": false
+      }
+    },
+    "input_source": [
+      {
+        "field": "intake",
+        "from": "intake_agent"
+      },
+      {
+        "field": "enrichment",
+        "from": "enrichment_agent"
+      },
+      {
+        "field": "risk",
+        "from": "risk_scoring_agent"
+      }
+    ],
+    "output": {
+      "decision": "approve",
+      "reason": "Approve: credit_band is excellent, loss_history is present with at_fault_accidents 0 and violations 1 or fewer, and risk score is 60 or lower. Credit band: excellent, loss history: at_fault_accidents 0, violations 0, flags: [], risk score: 30."
+    },
+    "decision": "approve",
+    "started_at": "2026-10-11T23:05:42.655002+00:00",
+    "duration_ms": 6629,
+    "model": "qwen3:8b",
+    "usage": {
+      "input_tokens": 583,
+      "output_tokens": 80
+    },
+    "cost_usd": 0.000743,
+    "attempt": 1,
+    "max_attempts": 3,
+    "status": "ok",
+    "error": null
+  }
+]
