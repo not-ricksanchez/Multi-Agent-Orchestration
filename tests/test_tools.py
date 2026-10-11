@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pytest
-
 from underwriting.errors import BureauError
 from underwriting.tools import lookup_bureau
 

@@ -1,7 +1,6 @@
 import json
 
 import pytest
-
 from underwriting.errors import ModelResponseError
 from underwriting.models import ModelResult, ScriptedModelAdapter
 from underwriting.orchestrator import run_case

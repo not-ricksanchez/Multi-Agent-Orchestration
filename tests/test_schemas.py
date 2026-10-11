@@ -1,6 +1,5 @@
 import pytest
 from pydantic import ValidationError
-
 from underwriting.schemas import IntakeSection, RecommendationSection, RiskSection
 
 

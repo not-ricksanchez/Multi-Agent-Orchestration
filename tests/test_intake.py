@@ -1,6 +1,5 @@
 import pytest
 from pydantic import ValidationError
-
 from underwriting.agents import intake_agent
 from underwriting.models import ModelResult, ScriptedModelAdapter
 from underwriting.schemas import IntakeSection

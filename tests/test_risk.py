@@ -1,6 +1,5 @@
 import pytest
 from pydantic import ValidationError
-
 from underwriting.agents import risk_scoring_agent
 from underwriting.models import ModelResult, ScriptedModelAdapter
 from underwriting.schemas import RiskSection

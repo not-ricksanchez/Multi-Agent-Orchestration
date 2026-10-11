@@ -4,7 +4,6 @@ from io import BytesIO
 from urllib.error import URLError
 
 import pytest
-
 from underwriting.errors import ModelResponseError
 from underwriting.models import (
     ModelResult,

@@ -1,0 +1,19 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["underwriting", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*.py" = ["E402"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.mypy]
+python_version = "3.12"
+packages = ["underwriting"]
+warn_unused_ignores = true
