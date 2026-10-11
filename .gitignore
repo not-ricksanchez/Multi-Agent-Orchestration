@@ -1,1 +1,17 @@
 plan.md
+
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.venv/
+venv/
+dist/
+build/
+.DS_Store
+.superpowers/
