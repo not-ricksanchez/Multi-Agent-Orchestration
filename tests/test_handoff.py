@@ -128,6 +128,8 @@ def test_run_case_hands_intake_to_enrichment_and_traces_both_spans(tmp_path):
     ]
     assert enrichment_span["input"]["intake"]["applicant_name"] == "Ada Lovelace"
     assert enrichment_span["input"]["bureau_report"]["credit_score"] == 790
+    assert enrichment_span["input"]["bureau_report"] == bureau_span["output"]
+    assert json.dumps(bureau_span["output"]) in enrichment_prompt
     assert enrichment_span["output"]["credit_band"] == "excellent"
     assert enrichment_span["usage"] == {"input_tokens": 12, "output_tokens": 6}
     assert enrichment_span["cost_usd"] == cost_usd(12, 6)

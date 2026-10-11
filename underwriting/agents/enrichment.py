@@ -1,12 +1,8 @@
 import json
-from pathlib import Path
 
 from underwriting.agents.section import schema_instructions, write_section
 from underwriting.models import ModelAdapter
 from underwriting.schemas import EnrichmentSection
-from underwriting.tools import lookup_bureau
-
-DEFAULT_BUREAU_PATH = Path(__file__).resolve().parents[2] / "bureau_reports.json"
 
 ENRICHMENT_SYSTEM = f"""
 You map a vendor motor-vehicle report into the enrichment section for one personal auto policy.
@@ -39,13 +35,7 @@ Examples:
 """.strip()
 
 
-def enrichment_agent(
-    case: dict,
-    model: ModelAdapter,
-    bureau_path: str | Path | None = None,
-) -> dict:
-    path = DEFAULT_BUREAU_PATH if bureau_path is None else bureau_path
-    report = lookup_bureau(case["intake"], path)
+def enrichment_agent(case: dict, model: ModelAdapter, report: dict) -> dict:
     user = "\n".join(
         [
             ENRICHMENT_RULES,

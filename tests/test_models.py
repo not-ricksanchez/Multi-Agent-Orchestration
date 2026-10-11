@@ -1,8 +1,11 @@
 import json
+import socket
 from io import BytesIO
+from urllib.error import URLError
 
 import pytest
 
+from underwriting.errors import ModelResponseError
 from underwriting.models import (
     ModelResult,
     OllamaModelAdapter,
@@ -125,5 +128,49 @@ def test_ollama_adapter_raises_value_error_on_non_json_content(monkeypatch):
     monkeypatch.setattr("underwriting.models.urlopen", fake_urlopen)
     adapter = OllamaModelAdapter(base_url="http://ollama.test")
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ModelResponseError):
         adapter.complete("system", "user")
+
+
+def test_ollama_adapter_passes_its_timeout_to_urlopen(monkeypatch):
+    captured = {}
+
+    class FakeResponse(BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    def fake_urlopen(request, timeout=None):
+        captured["timeout"] = timeout
+        payload = {"message": {"content": "{}"}, "prompt_eval_count": 1, "eval_count": 1}
+        return FakeResponse(json.dumps(payload).encode())
+
+    monkeypatch.setattr("underwriting.models.urlopen", fake_urlopen)
+
+    OllamaModelAdapter(base_url="http://ollama.test").complete("system", "user")
+    assert captured["timeout"] == 120
+
+    OllamaModelAdapter(base_url="http://ollama.test", timeout=7).complete("s", "u")
+    assert captured["timeout"] == 7
+
+
+def test_ollama_adapter_raises_timeout_error_when_the_call_times_out(monkeypatch):
+    def fake_urlopen(request, timeout=None):
+        raise URLError(socket.timeout("timed out"))
+
+    monkeypatch.setattr("underwriting.models.urlopen", fake_urlopen)
+
+    with pytest.raises(TimeoutError):
+        OllamaModelAdapter(base_url="http://ollama.test").complete("system", "user")
+
+
+def test_ollama_adapter_raises_connection_error_when_unreachable(monkeypatch):
+    def fake_urlopen(request, timeout=None):
+        raise URLError(ConnectionRefusedError(111, "Connection refused"))
+
+    monkeypatch.setattr("underwriting.models.urlopen", fake_urlopen)
+
+    with pytest.raises(ConnectionError):
+        OllamaModelAdapter(base_url="http://ollama.test").complete("system", "user")

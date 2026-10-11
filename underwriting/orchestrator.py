@@ -3,16 +3,17 @@ from datetime import datetime, timezone
 
 from pydantic import ValidationError
 
-from underwriting.agents.enrichment import DEFAULT_BUREAU_PATH, enrichment_agent
+from underwriting.agents.enrichment import enrichment_agent
 from underwriting.agents.intake import intake_agent
 from underwriting.agents.recommendation import recommendation_agent
 from underwriting.agents.risk import risk_scoring_agent
 from underwriting.case import new_case
+from underwriting.errors import BureauError, ModelResponseError
 from underwriting.pricing import cost_usd
-from underwriting.tools import lookup_bureau
+from underwriting.tools import DEFAULT_BUREAU_PATH, lookup_bureau
 from underwriting.tracing import Tracer
 
-RETRYABLE = (TimeoutError, ValidationError)
+RETRYABLE = (TimeoutError, ValidationError, ModelResponseError, ConnectionError)
 
 
 class _Escalated(Exception):
@@ -26,17 +27,18 @@ def run_case(
     *,
     max_attempts: int = 3,
     sleep=time.sleep,
+    bureau_path=DEFAULT_BUREAU_PATH,
 ) -> dict:
     case = new_case(raw)
     try:
-        _run_steps(case, model, tracer, max_attempts, sleep)
+        _run_steps(case, model, tracer, max_attempts, sleep, bureau_path)
     except _Escalated:
         return case
     case["status"] = "complete"
     return case
 
 
-def _run_steps(case, model, tracer, max_attempts, sleep):
+def _run_steps(case, model, tracer, max_attempts, sleep, bureau_path):
     _record_model_step(
         case,
         tracer,
@@ -49,30 +51,13 @@ def _run_steps(case, model, tracer, max_attempts, sleep):
         max_attempts=max_attempts,
         sleep=sleep,
     )
-    started_at, started = _clock()
-    report = lookup_bureau(case["intake"], DEFAULT_BUREAU_PATH)
-    tracer.record(
-        _span(
-            case,
-            step="mock_bureau",
-            agent="mock_bureau",
-            recorded_input={"intake": case["intake"]},
-            input_source=[{"field": "intake", "from": "intake_agent"}],
-            output=report,
-            started_at=started_at,
-            duration_ms=_duration_ms(started),
-            model=None,
-            usage=None,
-            cost=None,
-            max_attempts=max_attempts,
-        )
-    )
+    report = _lookup_bureau_step(case, tracer, bureau_path)
     _record_model_step(
         case,
         tracer,
         agent="enrichment_agent",
         step="enrichment",
-        call=lambda: enrichment_agent(case, model),
+        call=lambda: enrichment_agent(case, model, report),
         recorded_input={"intake": case["intake"], "bureau_report": report},
         input_source=[
             {"field": "intake", "from": "intake_agent"},
@@ -117,6 +102,40 @@ def _run_steps(case, model, tracer, max_attempts, sleep):
         max_attempts=max_attempts,
         sleep=sleep,
     )
+
+
+def _lookup_bureau_step(case, tracer, bureau_path):
+    started_at, started = _clock()
+    span = dict(
+        step="mock_bureau",
+        agent="mock_bureau",
+        recorded_input={"intake": case["intake"]},
+        input_source=[{"field": "intake", "from": "intake_agent"}],
+        started_at=started_at,
+        model=None,
+        usage=None,
+        cost=None,
+        max_attempts=1,
+    )
+    try:
+        report = lookup_bureau(case["intake"], bureau_path)
+    except BureauError as exc:
+        tracer.record(
+            _span(
+                case,
+                **span,
+                output=None,
+                duration_ms=_duration_ms(started),
+                status="escalated",
+                error=_error(exc),
+            )
+        )
+        _escalate(case, tracer, "mock_bureau", "bureau_report", exc, max_attempts=1)
+        raise _Escalated from exc
+    tracer.record(
+        _span(case, **span, output=report, duration_ms=_duration_ms(started))
+    )
+    return report
 
 
 def _record_model_step(

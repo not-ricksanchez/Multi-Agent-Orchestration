@@ -1,5 +1,8 @@
 from pathlib import Path
 
+import pytest
+
+from underwriting.errors import BureauError
 from underwriting.tools import lookup_bureau
 
 BUREAU = Path(__file__).resolve().parents[1] / "bureau_reports.json"
@@ -52,3 +55,28 @@ def test_lookup_bureau_unknown_license_is_not_found():
     assert report["mvr_events"] is None
     assert report["iso_symbol"] is None
     assert report["garaging_territory"] is None
+
+
+def test_lookup_bureau_missing_file_raises_bureau_error(tmp_path):
+    with pytest.raises(BureauError, match="cannot read"):
+        lookup_bureau({"license_number": "D1002001"}, tmp_path / "missing.json")
+
+
+def test_lookup_bureau_invalid_json_raises_bureau_error(tmp_path):
+    path = tmp_path / "bureau.json"
+    path.write_text("[{not json")
+
+    with pytest.raises(BureauError, match="cannot read"):
+        lookup_bureau({"license_number": "D1002001"}, path)
+
+
+@pytest.mark.parametrize(
+    "contents",
+    ['{"license_number": "D1002001"}', '["R-1001"]', '[{"report_id": "R-1001"}]'],
+)
+def test_lookup_bureau_wrong_shape_raises_bureau_error(tmp_path, contents):
+    path = tmp_path / "bureau.json"
+    path.write_text(contents)
+
+    with pytest.raises(BureauError, match="list of reports"):
+        lookup_bureau({"license_number": "D1002001"}, path)

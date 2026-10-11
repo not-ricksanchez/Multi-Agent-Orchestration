@@ -36,7 +36,7 @@ Agents mutate this dict and return it. Sections stay disjoint. A section stays `
 
 `applications.csv` is the inbound batch. Intake does not open it. The loader turns each row into a dictionary, and `run_case` copies that dictionary onto `raw_application`.
 
-`bureau_reports.json` is the vendor file. `lookup_bureau` reads it by `license_number`. It is not the case store. The enrichment section is the mapped result of that report.
+`bureau_reports.json` is the vendor file. `lookup_bureau` reads it by `license_number`. It is not the case store. The enrichment section is the mapped result of that report. `run_case` looks the report up once and passes that same dictionary to `enrichment_agent`, so the `mock_bureau` span shows exactly the report the model saw.
 
 Every application is personal auto. There is no home product.
 
@@ -64,7 +64,7 @@ Intake only normalizes the form.
 
 ### enrichment_agent
 
-Reads `intake` (source `intake_agent`) and `lookup_bureau(intake, path)` (source `mock_bureau`, file `bureau_reports.json`).
+Reads `intake` (source `intake_agent`) and the bureau report passed in by `run_case` (source `mock_bureau`, from `lookup_bureau(intake, path)` on `bureau_reports.json`). The agent does not open the file itself.
 
 Writes `enrichment`:
 

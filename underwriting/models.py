@@ -2,7 +2,10 @@ import json
 import os
 from dataclasses import dataclass
 from typing import Protocol
+from urllib.error import URLError
 from urllib.request import Request, urlopen
+
+from underwriting.errors import ModelResponseError
 
 
 @dataclass(frozen=True)
@@ -28,11 +31,17 @@ class ScriptedModelAdapter:
 
 
 class OllamaModelAdapter:
-    def __init__(self, base_url: str | None = None, model: str = "gemma3:12b"):
+    def __init__(
+        self,
+        base_url: str | None = None,
+        model: str = "gemma3:12b",
+        timeout: float = 120,
+    ):
         if base_url is None:
             base_url = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
         self.base_url = base_url.rstrip("/")
         self.model = model
+        self.timeout = timeout
 
     def complete(self, system: str, user: str) -> ModelResult:
         payload = {
@@ -51,8 +60,15 @@ class OllamaModelAdapter:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urlopen(request) as response:
-            body = _json_object(response.read().decode())
+        try:
+            with urlopen(request, timeout=self.timeout) as response:
+                body = _json_object(response.read().decode())
+        except URLError as exc:
+            if isinstance(exc.reason, TimeoutError):
+                raise TimeoutError(
+                    f"Ollama call timed out after {self.timeout}s"
+                ) from exc
+            raise ConnectionError(f"Ollama is unreachable: {exc.reason}") from exc
         content = _json_object(body["message"]["content"])
         return ModelResult(
             content=content,
@@ -66,7 +82,7 @@ def _json_object(text: str) -> dict:
     try:
         parsed = json.loads(text)
     except json.JSONDecodeError as exc:
-        raise ValueError("response is not JSON") from exc
+        raise ModelResponseError("response is not JSON") from exc
     if not isinstance(parsed, dict):
-        raise ValueError("response is not a JSON object")
+        raise ModelResponseError("response is not a JSON object")
     return parsed

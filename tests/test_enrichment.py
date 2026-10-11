@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pytest
 from pydantic import ValidationError
 
@@ -7,7 +5,15 @@ from underwriting.agents import enrichment_agent
 from underwriting.models import ModelResult, ScriptedModelAdapter
 from underwriting.schemas import EnrichmentSection
 
-BUREAU = Path(__file__).resolve().parents[1] / "bureau_reports.json"
+REPORT = {
+    "report_id": "R-1001",
+    "pulled_at": "2026-10-01",
+    "license_number": "D1002001",
+    "credit_score": 790,
+    "mvr_events": [],
+    "iso_symbol": 12,
+    "garaging_territory": "suburban",
+}
 
 INTAKE = {
     "applicant_name": "Ada Lovelace",
@@ -64,7 +70,7 @@ def test_enrichment_writes_validated_section_from_bureau_report():
     case = _case()
     adapter = ScriptedModelAdapter([_result(ENRICHMENT)])
 
-    enrichment_agent(case, adapter, bureau_path=BUREAU)
+    enrichment_agent(case, adapter, REPORT)
 
     assert case["enrichment"] == EnrichmentSection.model_validate(ENRICHMENT).model_dump()
     assert "applicant_name" not in case["enrichment"]
@@ -75,6 +81,7 @@ def test_enrichment_writes_validated_section_from_bureau_report():
     assert "Ada Lovelace" in user
     assert "D1002001" in user
     assert "790" in user
+    assert "R-1001" in user
     assert "750" in user
     assert "excellent" in user
     assert "at_fault_accidents" in user
@@ -101,7 +108,7 @@ def test_enrichment_invalid_band_leaves_section_empty():
     adapter = ScriptedModelAdapter([_result(invalid)])
 
     with pytest.raises(ValidationError):
-        enrichment_agent(case, adapter, bureau_path=BUREAU)
+        enrichment_agent(case, adapter, REPORT)
 
     assert case["enrichment"] is None
     assert case["intake"] == INTAKE

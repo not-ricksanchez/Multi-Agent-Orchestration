@@ -1,5 +1,8 @@
 import json
 
+import pytest
+
+from underwriting.errors import ModelResponseError
 from underwriting.models import ModelResult, ScriptedModelAdapter
 from underwriting.orchestrator import run_case
 from underwriting.pricing import cost_usd
@@ -54,11 +57,21 @@ def _result(content, input_tokens=10, output_tokens=5):
     )
 
 
-def _run(tmp_path, raw, results):
-    adapter = ScriptedModelAdapter(results)
+class RaisingAdapter(ScriptedModelAdapter):
+    def complete(self, system, user):
+        result = super().complete(system, user)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+
+def _run(tmp_path, raw, results, **kwargs):
+    adapter = RaisingAdapter(results)
     tracer = Tracer(tmp_path)
     sleeps = []
-    case = run_case(raw, adapter, tracer, max_attempts=3, sleep=sleeps.append)
+    case = run_case(
+        raw, adapter, tracer, max_attempts=3, sleep=sleeps.append, **kwargs
+    )
     spans = json.loads(tracer.path_for(raw["case_id"]).read_text())
     return case, spans, sleeps, adapter
 
@@ -187,3 +200,114 @@ def test_invalid_reply_then_valid_reply_recovers(tmp_path):
     assert "orchestrator" not in {span["agent"] for span in spans}
     assert spans[-1]["agent"] == "recommendation_agent"
     assert spans[-1]["attempt"] == 1
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        ModelResponseError("response is not JSON"),
+        ConnectionError("Ollama is unreachable: [Errno 111] Connection refused"),
+    ],
+)
+def test_adapter_errors_retry_then_escalate_instead_of_crashing(tmp_path, error):
+    raw = dict(RAW, case_id="APP-1001")
+
+    case, spans, sleeps, adapter = _run(
+        tmp_path, raw, [_result(INTAKE), error, error, error]
+    )
+
+    assert case["status"] == "escalated"
+    assert case["failure"] == {
+        "agent": "enrichment_agent",
+        "error": type(error).__name__,
+        "attempts": 3,
+    }
+    assert case["intake"] is not None
+    assert case["enrichment"] is None
+    assert case["risk"] is None
+    assert case["recommendation"] is None
+    assert len(adapter.prompts) == 4
+    assert sleeps == [0.5, 1.0]
+
+    enrichment_spans = [span for span in spans if span["agent"] == "enrichment_agent"]
+    assert [span["status"] for span in enrichment_spans] == [
+        "retry",
+        "retry",
+        "escalated",
+    ]
+    for span in enrichment_spans:
+        assert span["error"] == {"type": type(error).__name__, "message": str(error)}
+        assert span["output"] is None
+        assert span["usage"] is None
+        assert span["cost_usd"] is None
+    assert spans[-1]["agent"] == "orchestrator"
+    assert spans[-1]["input_source"] == [
+        {"field": "enrichment", "from": "enrichment_agent"}
+    ]
+
+
+def test_connection_error_then_success_recovers(tmp_path):
+    raw = dict(RAW, case_id="APP-1001")
+
+    case, spans, sleeps, _ = _run(
+        tmp_path,
+        raw,
+        [
+            ConnectionError("Ollama is unreachable: [Errno 111] Connection refused"),
+            _result(INTAKE),
+            _result(ENRICHMENT),
+            _result(RISK),
+            _result(RECOMMENDATION),
+        ],
+    )
+
+    assert case["status"] == "complete"
+    assert case["recommendation"]["decision"] == "approve"
+    assert sleeps == [0.5]
+    intake_spans = [span for span in spans if span["agent"] == "intake_agent"]
+    assert [(span["attempt"], span["status"]) for span in intake_spans] == [
+        (1, "retry"),
+        (2, "ok"),
+    ]
+    assert intake_spans[0]["error"]["type"] == "ConnectionError"
+
+
+@pytest.mark.parametrize("contents", [None, "[{not json", '{"license_number": "D1002001"}'])
+def test_bureau_failure_escalates_immediately_without_enrichment(tmp_path, contents):
+    bureau = tmp_path / "bureau.json"
+    if contents is not None:
+        bureau.write_text(contents)
+    raw = dict(RAW, case_id="APP-1001")
+
+    case, spans, sleeps, adapter = _run(
+        tmp_path / "traces", raw, [_result(INTAKE)], bureau_path=bureau
+    )
+
+    assert case["status"] == "escalated"
+    assert case["failure"] == {
+        "agent": "mock_bureau",
+        "error": "BureauError",
+        "attempts": 1,
+    }
+    assert case["intake"] is not None
+    assert case["enrichment"] is None
+    assert case["risk"] is None
+    assert case["recommendation"] is None
+    assert len(adapter.prompts) == 1
+    assert sleeps == []
+
+    assert [span["agent"] for span in spans] == [
+        "intake_agent",
+        "mock_bureau",
+        "orchestrator",
+    ]
+    bureau_span, escalation = spans[1], spans[2]
+    assert bureau_span["status"] == "escalated"
+    assert bureau_span["output"] is None
+    assert bureau_span["attempt"] == 1
+    assert bureau_span["max_attempts"] == 1
+    assert bureau_span["error"]["type"] == "BureauError"
+    assert escalation["decision"] == "escalate"
+    assert escalation["input_source"] == [
+        {"field": "bureau_report", "from": "mock_bureau"}
+    ]
