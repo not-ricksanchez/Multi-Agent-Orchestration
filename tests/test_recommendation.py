@@ -37,7 +37,7 @@ RECOMMENDATION = {"decision": "approve", "reason": "clean record"}
 
 def _case():
     return {
-        "case_id": "app-clean",
+        "case_id": "APP-1001",
         "raw_application": {"secret_marker": "RAW_ONLY"},
         "intake": dict(INTAKE),
         "enrichment": dict(ENRICHMENT),

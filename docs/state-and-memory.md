@@ -80,19 +80,19 @@ The prompt includes the vendor report, the intake section, and the mapping rules
 Mapping rules:
 
 - Credit score `750` or above is `excellent`. `650`–`749` is `fair`. `1`–`649` is `poor`. Null is `unknown`.
-- `at_fault_accidents` counts events of type `at_fault_accident`. `violations` counts `major_violation` and `minor_violation`. `total_losses` is the number of events. Null `mvr_events` makes `loss_history` null.
+- `at_fault_accidents` counts events of type `at_fault_accident`. `violations` counts `major_violation` and `minor_violation`. `total_losses` is the number of events. An empty `mvr_events` list gives all zeros. Null `mvr_events` makes `loss_history` null.
 - `iso_symbol` is copied to `vehicle_symbol`.
 - Territory `suburban` or `rural` is garaging `low`. `urban` is `high`. Null is `unknown`.
-- Flags: `recent_at_fault` if any at-fault event, `major_violations` if any major violation, `incomplete_bureau` if credit score or events are null. Otherwise `[]`.
+- Flags: `recent_at_fault` if any at-fault event, `major_violations` if any major violation, `incomplete_bureau` only if credit score or events are null or the report is `NOT_FOUND`. Otherwise `[]`.
 - `source` is `mock_bureau`.
 
 Checked-in reports, one object per `license_number`:
 
 | License | Case | Report | Credit | Events | ISO | Territory |
 | --- | --- | --- | --- | --- | --- | --- |
-| `D1002001` | `app-clean` | `R-1001` | 790 | none | 12 | `suburban` |
-| `D1002002` | `app-risky` | `R-1002` | 540 | two `at_fault_accident`, three `major_violation` | 28 | `urban` |
-| `D1002003` | `app-thin` | `R-1003` | null | null | null | null |
+| `D1002001` | `APP-1001` | `R-1001` | 790 | none | 12 | `suburban` |
+| `D1002002` | `APP-1002` | `R-1002` | 540 | two `at_fault_accident`, three `major_violation` | 28 | `urban` |
+| `D1002003` | `APP-1003` | `R-1003` | null | null | null | null |
 
 Each report has `report_id`, `pulled_at`, `license_number`, `credit_score`, `mvr_events`, `iso_symbol`, and `garaging_territory`. `mvr_events` is a list of `{type, date}` or null. Event types are `at_fault_accident`, `major_violation`, and `minor_violation`. `garaging_territory` is `suburban`, `rural`, `urban`, or null. All three reports are pulled `2026-10-01`.
 
@@ -121,6 +121,8 @@ Writes `recommendation`:
 - `decision`: `approve`, `deny`, or `refer`
 - `reason`: string
 
+The prompt applies the rules in order and stops at the first match: deny on poor credit, `recent_at_fault`, `major_violations`, or 3 or more prior claims; refer on missing data, unknown credit, null loss history, `incomplete_bureau`, or any `missing_fields`; approve on excellent or fair credit, no at-fault accidents, at most one violation, and a risk score of 60 or lower; otherwise refer.
+
 If `risk` is missing, this agent raises `ValueError` and does not call the model. It does not invent a decision, and `recommendation` stays `None`.
 
 ### run_case
@@ -131,4 +133,4 @@ It calls the four agents in order: intake, enrichment, risk scoring, recommendat
 
 On the happy path it sets `status` to `complete` after recommendation.
 
-A timeout or an invalid reply retries that same agent, then escalates. Escalation sets `status` to `escalated`, sets `failure` to the agent name, the error type (`TimeoutError` or `ValidationError`), and the attempt count, leaves the failed section and every later section as `None`, and skips the remaining agents. The required demonstration is `app-timeout` on risk scoring: `risk` and `recommendation` stay `None`.
+A timeout or an invalid reply retries that same agent, then escalates. Escalation sets `status` to `escalated`, sets `failure` to the agent name, the error type (`TimeoutError` or `ValidationError`), and the attempt count, leaves the failed section and every later section as `None`, and skips the remaining agents. Every attempt writes its own trace span with `attempt`, `status` (`ok`, `retry`, or `escalated` on the last failed attempt), and `error` (`type` and `message`). A failed attempt has a null `output`. A `ValidationError` attempt keeps its model tokens and `cost_usd`, because the model did reply. Escalation adds one `orchestrator` span with `step` `escalation` and `decision` `escalate`. The required demonstration is `app-timeout` on risk scoring: `risk` and `recommendation` stay `None`.

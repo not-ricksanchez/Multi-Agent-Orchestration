@@ -21,9 +21,9 @@ INTAKE = {
 
 def _case():
     return {
-        "case_id": "app-clean",
+        "case_id": "APP-1001",
         "raw_application": {
-            "case_id": "app-clean",
+            "case_id": "APP-1001",
             "applicant_name": "Ada Lovelace",
             "license_number": "D1002001",
             "age": 40,

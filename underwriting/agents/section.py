@@ -6,7 +6,8 @@ from underwriting.models import ModelResult
 def schema_instructions(schema) -> str:
     rendered = json.dumps(schema.model_json_schema(), indent=2)
     return (
-        "Respond with one JSON object and no other text. "
+        "Respond with one JSON object of field values and no other text. "
+        "Do not return this schema. Return the data it describes. "
         "This schema is the required response:\n"
         f"{rendered}"
     )

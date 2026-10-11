@@ -35,7 +35,7 @@ RISK = {"score": 18, "drivers": ["excellent credit"], "missing_data": False}
 
 def _case():
     return {
-        "case_id": "app-clean",
+        "case_id": "APP-1001",
         "raw_application": {"secret_marker": "RAW_ONLY"},
         "intake": dict(INTAKE),
         "enrichment": dict(ENRICHMENT),

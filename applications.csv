@@ -1,0 +1,4 @@
+case_id,applicant_name,license_number,age,years_licensed,vehicle_year,vehicle_make,coverage_amount,prior_claims
+APP-1001,Ada Lovelace,D1002001,40,20,2018,Honda,500000,0
+APP-1002,Jordan Hale,D1002002,18,1,2024,coupe,100000,4
+APP-1003,Mina Patel,D1002003,35,10,2015,Toyota,250000,

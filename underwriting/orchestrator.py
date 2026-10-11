@@ -1,12 +1,22 @@
 import time
 from datetime import datetime, timezone
 
+from pydantic import ValidationError
+
 from underwriting.agents.enrichment import DEFAULT_BUREAU_PATH, enrichment_agent
 from underwriting.agents.intake import intake_agent
+from underwriting.agents.recommendation import recommendation_agent
+from underwriting.agents.risk import risk_scoring_agent
 from underwriting.case import new_case
 from underwriting.pricing import cost_usd
 from underwriting.tools import lookup_bureau
 from underwriting.tracing import Tracer
+
+RETRYABLE = (TimeoutError, ValidationError)
+
+
+class _Escalated(Exception):
+    pass
 
 
 def run_case(
@@ -18,6 +28,15 @@ def run_case(
     sleep=time.sleep,
 ) -> dict:
     case = new_case(raw)
+    try:
+        _run_steps(case, model, tracer, max_attempts, sleep)
+    except _Escalated:
+        return case
+    case["status"] = "complete"
+    return case
+
+
+def _run_steps(case, model, tracer, max_attempts, sleep):
     _record_model_step(
         case,
         tracer,
@@ -28,6 +47,7 @@ def run_case(
         input_source=[{"field": "raw_application", "from": "user"}],
         output_key="intake",
         max_attempts=max_attempts,
+        sleep=sleep,
     )
     started_at, started = _clock()
     report = lookup_bureau(case["intake"], DEFAULT_BUREAU_PATH)
@@ -60,8 +80,43 @@ def run_case(
         ],
         output_key="enrichment",
         max_attempts=max_attempts,
+        sleep=sleep,
     )
-    return case
+    _record_model_step(
+        case,
+        tracer,
+        agent="risk_scoring_agent",
+        step="risk",
+        call=lambda: risk_scoring_agent(case, model),
+        recorded_input={"intake": case["intake"], "enrichment": case["enrichment"]},
+        input_source=[
+            {"field": "intake", "from": "intake_agent"},
+            {"field": "enrichment", "from": "enrichment_agent"},
+        ],
+        output_key="risk",
+        max_attempts=max_attempts,
+        sleep=sleep,
+    )
+    _record_model_step(
+        case,
+        tracer,
+        agent="recommendation_agent",
+        step="recommendation",
+        call=lambda: recommendation_agent(case, model),
+        recorded_input={
+            "intake": case["intake"],
+            "enrichment": case["enrichment"],
+            "risk": case["risk"],
+        },
+        input_source=[
+            {"field": "intake", "from": "intake_agent"},
+            {"field": "enrichment", "from": "enrichment_agent"},
+            {"field": "risk", "from": "risk_scoring_agent"},
+        ],
+        output_key="recommendation",
+        max_attempts=max_attempts,
+        sleep=sleep,
+    )
 
 
 def _record_model_step(
@@ -75,29 +130,102 @@ def _record_model_step(
     input_source,
     output_key,
     max_attempts,
+    sleep,
 ):
+    for attempt in range(1, max_attempts + 1):
+        started_at, started = _clock()
+        try:
+            call()
+        except RETRYABLE as exc:
+            duration_ms = _duration_ms(started)
+            final = attempt == max_attempts
+            tracer.record(
+                _span(
+                    case,
+                    step=step,
+                    agent=agent,
+                    recorded_input=recorded_input,
+                    input_source=input_source,
+                    output=None,
+                    started_at=started_at,
+                    duration_ms=duration_ms,
+                    max_attempts=max_attempts,
+                    attempt=attempt,
+                    status="escalated" if final else "retry",
+                    error=_error(exc),
+                    **_usage_fields(case.pop("_last_usage", None)),
+                )
+            )
+            if final:
+                _escalate(case, tracer, agent, output_key, exc, max_attempts)
+                raise _Escalated from exc
+            sleep(0.5 * attempt)
+            continue
+        output = case[output_key]
+        tracer.record(
+            _span(
+                case,
+                step=step,
+                agent=agent,
+                recorded_input=recorded_input,
+                input_source=input_source,
+                output=output,
+                started_at=started_at,
+                duration_ms=_duration_ms(started),
+                max_attempts=max_attempts,
+                attempt=attempt,
+                decision=output.get("decision"),
+                **_usage_fields(case.pop("_last_usage")),
+            )
+        )
+        return
+
+
+def _escalate(case, tracer, agent, output_key, exc, max_attempts):
     started_at, started = _clock()
-    call()
-    usage = case.pop("_last_usage")
+    case["status"] = "escalated"
+    case["failure"] = {
+        "agent": agent,
+        "error": type(exc).__name__,
+        "attempts": max_attempts,
+    }
     tracer.record(
         _span(
             case,
-            step=step,
-            agent=agent,
-            recorded_input=recorded_input,
-            input_source=input_source,
-            output=case[output_key],
+            step="escalation",
+            agent="orchestrator",
+            recorded_input={"failure": case["failure"]},
+            input_source=[{"field": output_key, "from": agent}],
+            output={"status": "escalated", "failure": case["failure"]},
             started_at=started_at,
             duration_ms=_duration_ms(started),
-            model=usage["model"],
-            usage={
-                "input_tokens": usage["input_tokens"],
-                "output_tokens": usage["output_tokens"],
-            },
-            cost=cost_usd(usage["input_tokens"], usage["output_tokens"]),
+            model=None,
+            usage=None,
+            cost=None,
             max_attempts=max_attempts,
+            attempt=max_attempts,
+            status="escalated",
+            error=_error(exc),
+            decision="escalate",
         )
     )
+
+
+def _usage_fields(usage):
+    if usage is None:
+        return {"model": None, "usage": None, "cost": None}
+    return {
+        "model": usage["model"],
+        "usage": {
+            "input_tokens": usage["input_tokens"],
+            "output_tokens": usage["output_tokens"],
+        },
+        "cost": cost_usd(usage["input_tokens"], usage["output_tokens"]),
+    }
+
+
+def _error(exc) -> dict:
+    return {"type": type(exc).__name__, "message": str(exc)}
 
 
 def _span(
@@ -114,6 +242,10 @@ def _span(
     usage,
     cost,
     max_attempts,
+    attempt=1,
+    status="ok",
+    error=None,
+    decision=None,
 ) -> dict:
     return {
         "case_id": case["case_id"],
@@ -122,16 +254,16 @@ def _span(
         "input": recorded_input,
         "input_source": input_source,
         "output": output,
-        "decision": None,
+        "decision": decision,
         "started_at": started_at,
         "duration_ms": duration_ms,
         "model": model,
         "usage": usage,
         "cost_usd": cost,
-        "attempt": 1,
+        "attempt": attempt,
         "max_attempts": max_attempts,
-        "status": "ok",
-        "error": None,
+        "status": status,
+        "error": error,
     }
 
 
