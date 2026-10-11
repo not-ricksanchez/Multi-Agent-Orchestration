@@ -1,0 +1,35 @@
+[
+  {
+    "report_id": "R-1001",
+    "pulled_at": "2026-10-01",
+    "license_number": "D1002001",
+    "credit_score": 790,
+    "mvr_events": [],
+    "iso_symbol": 12,
+    "garaging_territory": "suburban"
+  },
+  {
+    "report_id": "R-1002",
+    "pulled_at": "2026-10-01",
+    "license_number": "D1002002",
+    "credit_score": 540,
+    "mvr_events": [
+      {"type": "at_fault_accident", "date": "2024-03-12"},
+      {"type": "at_fault_accident", "date": "2025-01-08"},
+      {"type": "major_violation", "date": "2023-11-02"},
+      {"type": "major_violation", "date": "2024-06-19"},
+      {"type": "major_violation", "date": "2025-08-30"}
+    ],
+    "iso_symbol": 28,
+    "garaging_territory": "urban"
+  },
+  {
+    "report_id": "R-1003",
+    "pulled_at": "2026-10-01",
+    "license_number": "D1002003",
+    "credit_score": null,
+    "mvr_events": null,
+    "iso_symbol": null,
+    "garaging_territory": null
+  }
+]
