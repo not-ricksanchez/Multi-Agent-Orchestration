@@ -9,7 +9,7 @@ def schema_instructions(schema) -> str:
         "Respond with one JSON object of field values and no other text. "
         "Do not return this schema. Return the data it describes. "
         "This schema is the required response:\n"
-        f"{rendered}"
+        + rendered
     )
 
 
