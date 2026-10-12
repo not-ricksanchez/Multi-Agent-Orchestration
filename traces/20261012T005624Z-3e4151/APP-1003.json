@@ -1,0 +1,293 @@
+[
+  {
+    "run_id": "20261012T005624Z-3e4151",
+    "case_id": "APP-1003",
+    "step": "intake",
+    "agent": "intake_agent",
+    "input": {
+      "raw_application": {
+        "case_id": "APP-1003",
+        "applicant_name": "Mina Patel",
+        "license_number": "D1002003",
+        "age": 35,
+        "years_licensed": 10,
+        "vehicle_year": 2015,
+        "vehicle_make": "Toyota",
+        "coverage_amount": 250000
+      }
+    },
+    "input_source": [
+      {
+        "field": "raw_application",
+        "from": "user"
+      }
+    ],
+    "output": {
+      "applicant_name": "Mina Patel",
+      "license_number": "D1002003",
+      "age": 35,
+      "years_licensed": 10,
+      "vehicle_year": 2015,
+      "vehicle_make": "Toyota",
+      "coverage_amount": 250000,
+      "prior_claims": null,
+      "missing_fields": [
+        "prior_claims"
+      ]
+    },
+    "decision": null,
+    "started_at": "2026-10-12T00:56:59.289818+00:00",
+    "duration_ms": 3395,
+    "model": "qwen3:4b",
+    "usage": {
+      "input_tokens": 653,
+      "output_tokens": 96
+    },
+    "cost_usd": 0.0004225,
+    "attempt": 1,
+    "max_attempts": 3,
+    "status": "ok",
+    "error": null
+  },
+  {
+    "run_id": "20261012T005624Z-3e4151",
+    "case_id": "APP-1003",
+    "step": "mock_bureau",
+    "agent": "mock_bureau",
+    "input": {
+      "intake": {
+        "applicant_name": "Mina Patel",
+        "license_number": "D1002003",
+        "age": 35,
+        "years_licensed": 10,
+        "vehicle_year": 2015,
+        "vehicle_make": "Toyota",
+        "coverage_amount": 250000,
+        "prior_claims": null,
+        "missing_fields": [
+          "prior_claims"
+        ]
+      }
+    },
+    "input_source": [
+      {
+        "field": "intake",
+        "from": "intake_agent"
+      }
+    ],
+    "output": {
+      "report_id": "R-1003",
+      "pulled_at": "2026-10-01",
+      "license_number": "D1002003",
+      "credit_score": null,
+      "mvr_events": null,
+      "iso_symbol": null,
+      "garaging_territory": null
+    },
+    "decision": null,
+    "started_at": "2026-10-12T00:57:02.685587+00:00",
+    "duration_ms": 0,
+    "model": null,
+    "usage": null,
+    "cost_usd": null,
+    "attempt": 1,
+    "max_attempts": 1,
+    "status": "ok",
+    "error": null
+  },
+  {
+    "run_id": "20261012T005624Z-3e4151",
+    "case_id": "APP-1003",
+    "step": "enrichment",
+    "agent": "enrichment_agent",
+    "input": {
+      "intake": {
+        "applicant_name": "Mina Patel",
+        "license_number": "D1002003",
+        "age": 35,
+        "years_licensed": 10,
+        "vehicle_year": 2015,
+        "vehicle_make": "Toyota",
+        "coverage_amount": 250000,
+        "prior_claims": null,
+        "missing_fields": [
+          "prior_claims"
+        ]
+      },
+      "bureau_report": {
+        "report_id": "R-1003",
+        "pulled_at": "2026-10-01",
+        "license_number": "D1002003",
+        "credit_score": null,
+        "mvr_events": null,
+        "iso_symbol": null,
+        "garaging_territory": null
+      }
+    },
+    "input_source": [
+      {
+        "field": "intake",
+        "from": "intake_agent"
+      },
+      {
+        "field": "bureau_report",
+        "from": "mock_bureau"
+      }
+    ],
+    "output": {
+      "credit_band": "unknown",
+      "loss_history": null,
+      "vehicle_symbol": null,
+      "garaging_risk": "unknown",
+      "flags": [
+        "incomplete_bureau"
+      ],
+      "source": "mock_bureau"
+    },
+    "decision": null,
+    "started_at": "2026-10-12T00:57:02.686022+00:00",
+    "duration_ms": 3849,
+    "model": "qwen3:8b",
+    "usage": {
+      "input_tokens": 1310,
+      "output_tokens": 54
+    },
+    "cost_usd": 0.001418,
+    "attempt": 1,
+    "max_attempts": 3,
+    "status": "ok",
+    "error": null
+  },
+  {
+    "run_id": "20261012T005624Z-3e4151",
+    "case_id": "APP-1003",
+    "step": "risk",
+    "agent": "risk_scoring_agent",
+    "input": {
+      "intake": {
+        "applicant_name": "Mina Patel",
+        "license_number": "D1002003",
+        "age": 35,
+        "years_licensed": 10,
+        "vehicle_year": 2015,
+        "vehicle_make": "Toyota",
+        "coverage_amount": 250000,
+        "prior_claims": null,
+        "missing_fields": [
+          "prior_claims"
+        ]
+      },
+      "enrichment": {
+        "credit_band": "unknown",
+        "loss_history": null,
+        "vehicle_symbol": null,
+        "garaging_risk": "unknown",
+        "flags": [
+          "incomplete_bureau"
+        ],
+        "source": "mock_bureau"
+      }
+    },
+    "input_source": [
+      {
+        "field": "intake",
+        "from": "intake_agent"
+      },
+      {
+        "field": "enrichment",
+        "from": "enrichment_agent"
+      }
+    ],
+    "output": {
+      "score": 30,
+      "drivers": [
+        "credit unknown",
+        "no loss history on file"
+      ],
+      "missing_data": true
+    },
+    "decision": null,
+    "started_at": "2026-10-12T00:57:06.536648+00:00",
+    "duration_ms": 2444,
+    "model": "qwen3:8b",
+    "usage": {
+      "input_tokens": 684,
+      "output_tokens": 33
+    },
+    "cost_usd": 0.00075,
+    "attempt": 1,
+    "max_attempts": 3,
+    "status": "ok",
+    "error": null
+  },
+  {
+    "run_id": "20261012T005624Z-3e4151",
+    "case_id": "APP-1003",
+    "step": "recommendation",
+    "agent": "recommendation_agent",
+    "input": {
+      "intake": {
+        "applicant_name": "Mina Patel",
+        "license_number": "D1002003",
+        "age": 35,
+        "years_licensed": 10,
+        "vehicle_year": 2015,
+        "vehicle_make": "Toyota",
+        "coverage_amount": 250000,
+        "prior_claims": null,
+        "missing_fields": [
+          "prior_claims"
+        ]
+      },
+      "enrichment": {
+        "credit_band": "unknown",
+        "loss_history": null,
+        "vehicle_symbol": null,
+        "garaging_risk": "unknown",
+        "flags": [
+          "incomplete_bureau"
+        ],
+        "source": "mock_bureau"
+      },
+      "risk": {
+        "score": 30,
+        "drivers": [
+          "credit unknown",
+          "no loss history on file"
+        ],
+        "missing_data": true
+      }
+    },
+    "input_source": [
+      {
+        "field": "intake",
+        "from": "intake_agent"
+      },
+      {
+        "field": "enrichment",
+        "from": "enrichment_agent"
+      },
+      {
+        "field": "risk",
+        "from": "risk_scoring_agent"
+      }
+    ],
+    "output": {
+      "decision": "refer",
+      "reason": "Refer: missing data. credit band is unknown, loss_history is null, flags include incomplete_bureau, and intake.missing_fields includes prior_claims."
+    },
+    "decision": "refer",
+    "started_at": "2026-10-12T00:57:08.982045+00:00",
+    "duration_ms": 3138,
+    "model": "qwen3:8b",
+    "usage": {
+      "input_tokens": 567,
+      "output_tokens": 46
+    },
+    "cost_usd": 0.000659,
+    "attempt": 1,
+    "max_attempts": 3,
+    "status": "ok",
+    "error": null
+  }
+]

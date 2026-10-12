@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from underwriting.models import OllamaModelAdapter
+from underwriting.models import OllamaIntakeAdapter, OllamaModelAdapter
 from underwriting.orchestrator import run_case
 from underwriting.summary import summarize_trace
 from underwriting.tracing import Tracer
@@ -29,7 +29,9 @@ def main() -> None:
     os.chdir(ROOT)
     tracer = Tracer()
     print(f"run_id={tracer.run_id} traces={tracer.run_directory}")
-    case = run_case(APP_TIMEOUT, OllamaModelAdapter(), tracer)
+    case = run_case(
+        APP_TIMEOUT, OllamaModelAdapter(), tracer, intake_model=OllamaIntakeAdapter()
+    )
     path = tracer.path_for(case["case_id"])
     for span in json.loads(path.read_text()):
         error = span["error"]["type"] if span["error"] else None

@@ -7,9 +7,11 @@ import pytest
 from underwriting.errors import ModelResponseError
 from underwriting.models import (
     ModelResult,
+    OllamaIntakeAdapter,
     OllamaModelAdapter,
     ScriptedModelAdapter,
 )
+from underwriting.schemas import IntakeSection
 
 
 def test_scripted_adapter_returns_results_and_records_prompts():
@@ -196,3 +198,61 @@ def test_ollama_adapter_raises_connection_error_when_unreachable(monkeypatch):
 
     with pytest.raises(ConnectionError):
         OllamaModelAdapter(base_url="http://ollama.test").complete("system", "user")
+
+
+def test_ollama_adapter_sends_response_schema_as_format(monkeypatch):
+    captured = {}
+
+    class FakeResponse(BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    def fake_urlopen(request, timeout=None):
+        captured["body"] = json.loads(request.data.decode())
+        payload = {
+            "message": {"content": "{}"},
+            "prompt_eval_count": 1,
+            "eval_count": 1,
+        }
+        return FakeResponse(json.dumps(payload).encode())
+
+    monkeypatch.setattr("underwriting.models.urlopen", fake_urlopen)
+    schema = {"type": "object", "properties": {"a": {"type": "integer"}}}
+
+    OllamaModelAdapter(
+        base_url="http://ollama.test", model="qwen3:4b", response_schema=schema
+    ).complete("system", "user")
+
+    assert captured["body"]["format"] == schema
+    assert captured["body"]["model"] == "qwen3:4b"
+
+
+def test_ollama_intake_adapter_uses_qwen3_4b_with_the_intake_schema(monkeypatch):
+    captured = {}
+
+    class FakeResponse(BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    def fake_urlopen(request, timeout=None):
+        captured["body"] = json.loads(request.data.decode())
+        payload = {
+            "message": {"content": "{}"},
+            "prompt_eval_count": 1,
+            "eval_count": 1,
+        }
+        return FakeResponse(json.dumps(payload).encode())
+
+    monkeypatch.setattr("underwriting.models.urlopen", fake_urlopen)
+
+    result = OllamaIntakeAdapter(base_url="http://ollama.test").complete("system", "user")
+
+    assert result.model == "qwen3:4b"
+    assert captured["body"]["model"] == "qwen3:4b"
+    assert captured["body"]["format"] == IntakeSection.model_json_schema()

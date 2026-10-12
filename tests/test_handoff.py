@@ -312,3 +312,34 @@ def _assert_timing(span):
     assert span["duration_ms"] >= 0
     started = datetime.fromisoformat(span["started_at"])
     assert started.utcoffset() == timedelta(0)
+
+
+def test_intake_model_runs_only_intake_and_is_priced_at_its_own_rate(tmp_path):
+    intake_adapter = ScriptedModelAdapter(
+        [
+            ModelResult(
+                content=INTAKE, model="qwen3:4b", input_tokens=1_000_000, output_tokens=1_000_000
+            )
+        ]
+    )
+    main_adapter = ScriptedModelAdapter(
+        [
+            _result(ENRICHMENT, input_tokens=12, output_tokens=6),
+            _result(RISK, input_tokens=15, output_tokens=5),
+            _result(RECOMMENDATION, input_tokens=8, output_tokens=4),
+        ]
+    )
+    tracer = Tracer(tmp_path)
+
+    case = run_case(RAW, main_adapter, tracer, intake_model=intake_adapter)
+
+    assert case["status"] == "complete"
+    assert len(intake_adapter.prompts) == 1
+    assert "Ada Lovelace" in intake_adapter.prompts[0][1]
+    assert len(main_adapter.prompts) == 3
+    spans = json.loads(tracer.path_for("APP-1001").read_text())
+    intake_span, _, enrichment_span, _, _ = spans
+    assert intake_span["model"] == "qwen3:4b"
+    assert intake_span["cost_usd"] == 1.5
+    assert enrichment_span["model"] == "scripted"
+    assert enrichment_span["cost_usd"] == cost_usd(12, 6)

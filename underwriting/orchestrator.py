@@ -28,23 +28,27 @@ def run_case(
     max_attempts: int = 3,
     sleep=time.sleep,
     bureau_path=DEFAULT_BUREAU_PATH,
+    intake_model=None,
 ) -> dict:
     case = new_case(raw)
     try:
-        _run_steps(case, model, tracer, max_attempts, sleep, bureau_path)
+        _run_steps(
+            case, model, tracer, max_attempts, sleep, bureau_path, intake_model or model
+        )
     except _Escalated:
         return case
     case["status"] = "complete"
     return case
 
 
-def _run_steps(case, model, tracer, max_attempts, sleep, bureau_path):
+def _run_steps(case, model, tracer, max_attempts, sleep, bureau_path, intake_model):
     _record_model_step(
         case,
         tracer,
         agent="intake_agent",
+        adapter=intake_model,
         step="intake",
-        call=lambda: intake_agent(case, model),
+        call=lambda: intake_agent(case, intake_model),
         recorded_input={"raw_application": case["raw_application"]},
         input_source=[{"field": "raw_application", "from": "user"}],
         output_key="intake",
@@ -56,6 +60,7 @@ def _run_steps(case, model, tracer, max_attempts, sleep, bureau_path):
         case,
         tracer,
         agent="enrichment_agent",
+        adapter=model,
         step="enrichment",
         call=lambda: enrichment_agent(case, model, report),
         recorded_input={"intake": case["intake"], "bureau_report": report},
@@ -71,6 +76,7 @@ def _run_steps(case, model, tracer, max_attempts, sleep, bureau_path):
         case,
         tracer,
         agent="risk_scoring_agent",
+        adapter=model,
         step="risk",
         call=lambda: risk_scoring_agent(case, model),
         recorded_input={"intake": case["intake"], "enrichment": case["enrichment"]},
@@ -86,6 +92,7 @@ def _run_steps(case, model, tracer, max_attempts, sleep, bureau_path):
         case,
         tracer,
         agent="recommendation_agent",
+        adapter=model,
         step="recommendation",
         call=lambda: recommendation_agent(case, model),
         recorded_input={
@@ -143,6 +150,7 @@ def _record_model_step(
     tracer,
     *,
     agent,
+    adapter,
     step,
     call,
     recorded_input,
@@ -151,6 +159,7 @@ def _record_model_step(
     max_attempts,
     sleep,
 ):
+    model_name = getattr(adapter, "model", None)
     for attempt in range(1, max_attempts + 1):
         started_at, started = _clock()
         try:
@@ -172,7 +181,7 @@ def _record_model_step(
                     attempt=attempt,
                     status="escalated" if final else "retry",
                     error=_error(exc),
-                    **_usage_fields(case.pop("_last_usage", None)),
+                    **_usage_fields(case.pop("_last_usage", None), model_name),
                 )
             )
             if final:
@@ -194,7 +203,7 @@ def _record_model_step(
                 max_attempts=max_attempts,
                 attempt=attempt,
                 decision=output.get("decision"),
-                **_usage_fields(case.pop("_last_usage")),
+                **_usage_fields(case.pop("_last_usage"), model_name),
             )
         )
         return
@@ -230,16 +239,16 @@ def _escalate(case, tracer, agent, output_key, exc, max_attempts):
     )
 
 
-def _usage_fields(usage):
+def _usage_fields(usage, model_name=None):
     if usage is None:
-        return {"model": None, "usage": None, "cost": None}
+        return {"model": model_name, "usage": None, "cost": None}
     return {
         "model": usage["model"],
         "usage": {
             "input_tokens": usage["input_tokens"],
             "output_tokens": usage["output_tokens"],
         },
-        "cost": cost_usd(usage["input_tokens"], usage["output_tokens"]),
+        "cost": cost_usd(usage["input_tokens"], usage["output_tokens"], usage["model"]),
     }
 
 

@@ -310,3 +310,22 @@ def test_bureau_failure_escalates_immediately_without_enrichment(tmp_path, conte
     assert escalation["input_source"] == [
         {"field": "bureau_report", "from": "mock_bureau"}
     ]
+
+
+def test_failed_attempts_still_record_the_model_name(tmp_path):
+    class NamedAdapter(RaisingAdapter):
+        model = "qwen3:8b"
+
+    adapter = NamedAdapter([_result(INTAKE), _result(ENRICHMENT)])
+    tracer = Tracer(tmp_path)
+
+    run_case(RAW, adapter, tracer, max_attempts=3, sleep=lambda _: None)
+
+    spans = json.loads(tracer.path_for(RAW["case_id"]).read_text())
+    risk_spans = [span for span in spans if span["step"] == "risk"]
+    assert [span["status"] for span in risk_spans] == ["retry", "retry", "escalated"]
+    assert {span["model"] for span in risk_spans} == {"qwen3:8b"}
+    assert all(span["usage"] is None and span["cost_usd"] is None for span in risk_spans)
+    by_step = {span["step"]: span for span in spans}
+    assert by_step["mock_bureau"]["model"] is None
+    assert by_step["escalation"]["model"] is None
