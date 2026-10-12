@@ -19,27 +19,31 @@ A human underwriter picks up an `escalated` case. That is different from `refer`
 
 ## Trace evidence
 
-Produced by `scripts/run_timeout_case.py`. The live adapter default is `qwen3:8b` with `think` false. The checked-in demonstration is run `20261011T215304Z-b5ecb3` (`traces/20261011T215304Z-b5ecb3/app-timeout.json`). Intake and enrichment in that file used `gemma3:12b`; the timeout path does not call the model.
+Produced by `scripts/run_timeout_case.py`. The live adapter default is `qwen3:8b` with `think` false. The checked-in demonstration is run `20261012T010200Z-120d74` (`traces/20261012T010200Z-120d74/app-timeout.json`). Intake ran on `qwen3:4b` and enrichment on `qwen3:8b`; the timeout path does not call the model.
 
-| Step | Agent | Attempt | Status | Error | Started (UTC) | duration_ms | cost_usd |
-| --- | --- | ---: | --- | --- | --- | ---: | ---: |
-| intake | intake_agent | 1 | ok |  | 21:53:04.912 | 22,504 | 0.000974 |
-| mock_bureau | mock_bureau | 1 | ok |  | 21:53:27.417 | 0 |  |
-| enrichment | enrichment_agent | 1 | ok |  | 21:53:27.418 | 16,944 | 0.001688 |
-| risk | risk_scoring_agent | 1 | retry | TimeoutError | 21:53:44.369 | 0 |  |
-| risk | risk_scoring_agent | 2 | retry | TimeoutError | 21:53:44.871 | 0 |  |
-| risk | risk_scoring_agent | 3 | escalated | TimeoutError | 21:53:45.878 | 0 |  |
-| escalation | orchestrator | 3 | escalated | TimeoutError | 21:53:45.880 | 0 |  |
+
+| Step        | Agent              | Model      | Attempt | Status    | Error        | Started (UTC) | duration_ms | cost_usd |
+| ----------- | ------------------ | ---------- | ------- | --------- | ------------ | ------------- | ----------- | -------- |
+| intake      | intake_agent       | `qwen3:4b` | 1       | ok        |              | 01:02:00.149  | 4,073       | 0.000424 |
+| mock_bureau | mock_bureau        |            | 1       | ok        |              | 01:02:04.226  | 0           |          |
+| enrichment  | enrichment_agent   | `qwen3:8b` | 1       | ok        |              | 01:02:04.227  | 6,830       | 0.001472 |
+| risk        | risk_scoring_agent | `qwen3:8b` | 1       | retry     | TimeoutError | 01:02:11.068  | 0           |          |
+| risk        | risk_scoring_agent | `qwen3:8b` | 2       | retry     | TimeoutError | 01:02:11.571  | 0           |          |
+| risk        | risk_scoring_agent | `qwen3:8b` | 3       | escalated | TimeoutError | 01:02:12.576  | 0           |          |
+| escalation  | orchestrator       |            | 3       | escalated | TimeoutError | 01:02:12.579  | 0           |          |
+
 
 The start times show the backoff: about 0.5 s between attempts 1 and 2, and 1.0 s between attempts 2 and 3. The escalation span has `decision` `escalate` and output `{"status": "escalated", "failure": {"agent": "risk_scoring_agent", "error": "TimeoutError", "attempts": 3}}`.
 
-The final case has `intake` and `enrichment` filled, and `risk` and `recommendation` both `None`. Only intake and enrichment called the model, so the case cost $0.002662. Span durations sum to 39,448 ms. The 1.5 s of backoff waits are not inside any span.
+The final case has `intake` and `enrichment` filled, and `risk` and `recommendation` both `None`. Only intake and enrichment called the model, so the case cost $0.001896. The failed risk spans have no tokens or cost, because the timeout is raised before any model call. Span durations sum to 10,903 ms. The 1.5 s of backoff waits are not inside any span.
 
 ## Outcome
 
 - No crash: the script exits normally and the case is returned.
 - No silent wrong answer: there is no risk score and no recommendation, and the case is marked `escalated` with the failing agent named.
 - Every attempt is visible in the trace, with its error.
+
+
 
 ## Tests
 
